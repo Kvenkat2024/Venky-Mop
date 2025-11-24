@@ -1,10 +1,17 @@
 import React, { useState, useEffect } from 'react';
+import { Routes, Route, Navigate } from 'react-router-dom';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { getAuth } from 'firebase/auth';
 import './App.css';
 import EmployeeList from './components/EmployeeList';
 import EmployeeForm from './components/EmployeeForm';
 import EmployeeDetail from './components/EmployeeDetail';
+import Login from './components/login';
+import app from './firebase';
 
-function App() {
+const auth = getAuth(app);
+
+function EmployeeManagementApp() {
   const [employees, setEmployees] = useState([]);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
   const [isFormVisible, setIsFormVisible] = useState(false);
@@ -80,6 +87,14 @@ function App() {
     }
   };
 
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+    } catch (error) {
+      console.error("Error logging out:", error);
+    }
+  };
+
   const filteredEmployees = employees.filter(emp =>
     emp.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     emp.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -90,6 +105,7 @@ function App() {
     <div className="App">
       <header className="app-header">
         <h1>Employee Management System</h1>
+        <button className="btn btn-logout" onClick={handleLogout}>Logout</button>
       </header>
 
       <div className="app-container">
@@ -154,6 +170,45 @@ function App() {
         </div>
       </div>
     </div>
+  );
+}
+
+function ProtectedRoute({ isAuthenticated, loading, children }) {
+  if (loading) {
+    return <div style={{ textAlign: 'center', marginTop: '50px' }}>Loading...</div>;
+  }
+  return isAuthenticated ? children : <Navigate to="/" />;
+}
+
+function App() {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        setIsAuthenticated(true);
+      } else {
+        setIsAuthenticated(false);
+      }
+      setLoading(false);
+    });
+
+    return unsubscribe;
+  }, []);
+
+  return (
+    <Routes>
+      <Route path="/" element={!isAuthenticated && !loading ? <Login /> : loading ? <div style={{ textAlign: 'center', marginTop: '50px' }}>Loading...</div> : <Navigate to="/employees" />} />
+      <Route
+        path="/employees"
+        element={
+          <ProtectedRoute isAuthenticated={isAuthenticated} loading={loading}>
+            <EmployeeManagementApp />
+          </ProtectedRoute>
+        }
+      />
+    </Routes>
   );
 }
 
